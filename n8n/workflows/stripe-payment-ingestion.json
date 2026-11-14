@@ -6,24 +6,32 @@
         "httpMethod": "POST",
         "path": "finance-hub/stripe-events",
         "responseMode": "onReceived",
-        "options": {}
+        "options": {
+          "rawBody": true
+        }
       },
       "id": "e77f5a42-01a0-4c42-8d4f-9d50f6b8f001",
       "name": "Receive Stripe Event",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [240, 300],
+      "position": [
+        240,
+        300
+      ],
       "webhookId": "finance-hub-stripe-events"
     },
     {
       "parameters": {
-        "jsCode": "const incoming = $input.first().json;\nconst headers = incoming.headers ?? {};\nconst body = incoming.body ?? incoming;\nconst eventId = body.id;\nconst eventType = body.type;\nif (!eventId || !eventType) { throw new Error('Invalid Stripe event: expected id and type'); }\nreturn [{ json: { event_id: eventId, event_type: eventType, stripe_signature: headers['stripe-signature'] ?? headers['Stripe-Signature'] ?? null, raw_body: typeof body === 'string' ? body : JSON.stringify(body), received_at: new Date().toISOString(), event: body } }];"
+        "jsCode": "const incoming = $input.first().json;\nconst headers = incoming.headers ?? {};\nconst body = incoming.body ?? incoming;\nconst eventId = body.id;\nconst eventType = body.type;\nconst rawBody = incoming.rawBody ?? incoming.raw_body;\nif (!eventId || !eventType) { throw new Error('Invalid Stripe event: expected id and type'); }\nif (typeof rawBody !== 'string') { throw new Error('Raw request body unavailable. Enable Raw Body on the Webhook node.'); }\nreturn [{ json: { event_id: eventId, event_type: eventType, stripe_signature: headers['stripe-signature'] ?? headers['Stripe-Signature'] ?? null, raw_body: rawBody, received_at: new Date().toISOString(), event: body } }];"
       },
       "id": "e77f5a42-01a0-4c42-8d4f-9d50f6b8f002",
       "name": "Normalize Event Envelope",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [480, 300]
+      "position": [
+        480,
+        300
+      ]
     },
     {
       "parameters": {
@@ -62,16 +70,35 @@
       "name": "Forward to Verified Integration API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [740, 300],
+      "position": [
+        740,
+        300
+      ],
       "onError": "stopWorkflow"
     }
   ],
   "connections": {
     "Receive Stripe Event": {
-      "main": [[{ "node": "Normalize Event Envelope", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Normalize Event Envelope",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Normalize Event Envelope": {
-      "main": [[{ "node": "Forward to Verified Integration API", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Forward to Verified Integration API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
