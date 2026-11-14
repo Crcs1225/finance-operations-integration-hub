@@ -1,0 +1,87 @@
+{
+  "name": "Finance Hub - Stripe Payment Event Ingestion",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "finance-hub/stripe-events",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "e77f5a42-01a0-4c42-8d4f-9d50f6b8f001",
+      "name": "Receive Stripe Event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "finance-hub-stripe-events"
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $input.first().json;\nconst headers = incoming.headers ?? {};\nconst body = incoming.body ?? incoming;\nconst eventId = body.id;\nconst eventType = body.type;\nif (!eventId || !eventType) { throw new Error('Invalid Stripe event: expected id and type'); }\nreturn [{ json: { event_id: eventId, event_type: eventType, stripe_signature: headers['stripe-signature'] ?? headers['Stripe-Signature'] ?? null, raw_body: typeof body === 'string' ? body : JSON.stringify(body), received_at: new Date().toISOString(), event: body } }];"
+      },
+      "id": "e77f5a42-01a0-4c42-8d4f-9d50f6b8f002",
+      "name": "Normalize Event Envelope",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FINANCE_API_URL + '/webhooks/stripe' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.FINANCE_API_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Stripe-Signature",
+              "value": "={{ $json.stripe_signature || '' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { event_id: $json.event_id, event_type: $json.event_type, raw_body: $json.raw_body, event: $json.event, received_at: $json.received_at } }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": false
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "e77f5a42-01a0-4c42-8d4f-9d50f6b8f003",
+      "name": "Forward to Verified Integration API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [740, 300],
+      "onError": "stopWorkflow"
+    }
+  ],
+  "connections": {
+    "Receive Stripe Event": {
+      "main": [[{ "node": "Normalize Event Envelope", "type": "main", "index": 0 }]]
+    },
+    "Normalize Event Envelope": {
+      "main": [[{ "node": "Forward to Verified Integration API", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
